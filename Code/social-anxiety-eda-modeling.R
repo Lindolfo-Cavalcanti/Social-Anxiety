@@ -2,7 +2,6 @@ library(tidyverse)
 library(skimr)
 library(corrplot)
 library(psych)
-library(dlookr)
 
 # Read in data
 df <- read.csv("Data/enhanced_anxiety_dataset.csv")
@@ -74,6 +73,7 @@ df |>
   group_by(Anxiety.Category, Gender) |>
   summarise(across(where(is.numeric), mean, na.rm = TRUE)) |>
   view()
+
 # No difference in Gender
 
 df |>
@@ -188,9 +188,93 @@ df |>
   ) +
   theme_minimal()
 
-# Elders are less likely to have high Anxiety level?
-
 # I'm kind of confused about age variable.
+
+# T-tests for variables with YES/NO answers
+
+# Variace test
+
+car::leveneTest(Anxiety.Level..1.10. ~ Smoking, data = df) |> print()
+car::leveneTest(Anxiety.Level..1.10. ~ Family.History.of.Anxiety, data = df)
+car::leveneTest(Anxiety.Level..1.10. ~ Dizziness, data = df)
+car::leveneTest(Anxiety.Level..1.10. ~ Medication, data = df)
+car::leveneTest(Anxiety.Level..1.10. ~ Recent.Major.Life.Event, data = df)
+
+# T-tests
+
+t.result.smoking <- t.test(df$Anxiety.Level..1.10. ~ df$Smoking)
+t.result.family.history <- t.test(
+  df$Anxiety.Level..1.10. ~ df$Family.History.of.Anxiety
+)
+t.result.dizziness <- t.test(df$Anxiety.Level..1.10. ~ df$Dizziness)
+t.result.medication <- t.test(df$Anxiety.Level..1.10. ~ df$Medication)
+t.result.recent.major.life.event <- t.test(
+  df$Anxiety.Level..1.10. ~ df$Recent.Major.Life.Event
+)
+
+t.result.smoking |> report::report() |> print()
+t.result.family.history |> report::report() |> print()
+t.result.dizziness |> report::report() |> print()
+t.result.medication |> report::report() |> print()
+t.result.recent.major.life.event |> report::report() |> print()
+
+wilcox.result.smoking <- wilcox.test(
+  df$Anxiety.Level..1.10. ~ df$Smoking
+)
+wilcox.result.family.history <- wilcox.test(
+  df$Anxiety.Level..1.10. ~ df$Family.History.of.Anxiety
+)
+
+wilcox.result.dizziness <- wilcox.test(
+  df$Anxiety.Level..1.10. ~ df$Dizziness
+)
+
+wilcox.result.medication <- wilcox.test(
+  df$Anxiety.Level..1.10. ~ df$Medication
+)
+
+wilcox.result.recent.major.life.event <- wilcox.test(
+  df$Anxiety.Level..1.10. ~ df$Recent.Major.Life.Event
+)
+
+wilcox.result.smoking |> report::report()
+wilcox.result.family.history |> report::report()
+wilcox.result.dizziness |> report::report()
+wilcox.result.medication |> report::report()
+wilcox.result.recent.major.life.event |> report::report()
+
+# Testing diference in age categories
+
+ggplot(df, aes(sample = Anxiety.Level..1.10.)) +
+  stat_qq() +
+  stat_qq_line() +
+  facet_wrap(~age.category)
+
+car::leveneTest(Anxiety.Level..1.10. ~ age.category, data = df)
+
+kruskal.test(Anxiety.Level..1.10. ~ age.category, data = df)
+
+pairwise.wilcox.test(
+  df$Anxiety.Level..1.10.,
+  df$age.category,
+  p.adjust.method = "bonferroni"
+)
+
+library(ggpubr)
+
+ggplot(df, aes(x = age.category, y = Anxiety.Level..1.10.)) +
+  geom_boxplot() +
+  stat_compare_means(
+    comparisons = list(
+      c("adults", "elders"),
+      c("adults", "young"),
+      c("young adults", "elders"),
+      c("young adults", "young")
+    ),
+    method = "wilcox.test",
+    label = "p.signif"
+  ) +
+  labs(x = "Age Group", y = "Anxiety Level (1-10)")
 
 # Variables to be included in the General Model: Occupation,  Sleep.Hours, Physical.Activity..hrs.week., Caffeine.Intake..mg.day., Alcohol.Consumption..drinks.week., Smoking, Family.History.of.Anxiety, Stress.Level..1.10., Heart.Rate..bpm., Breathing.Rate..breaths.min., Sweating.Level..1.5., Diet.Quality..1.10., Medication, Recent.Major.Life.Event, Dizziness, Therapy.Sessions..per.month., age.categoty,
 
