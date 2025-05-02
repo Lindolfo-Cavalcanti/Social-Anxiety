@@ -1,5 +1,6 @@
 library(tidyverse)
 library(ggpubr)
+library(caret)
 use('skimr', 'skim')
 use('psych', 'describe')
 use('corrplot', 'corrplot')
@@ -23,25 +24,31 @@ df.num |> describe()
 cor_matrix <- cor(df.num)
 
 # Custom color palette (blue to red)
-col <- colorRampPalette(c("#0571b0", "#92c5de", "#f7f7f7", "#f4a582", "#ca0020"))(200)
+col <- colorRampPalette(c(
+  "#0571b0",
+  "#92c5de",
+  "#f7f7f7",
+  "#f4a582",
+  "#ca0020"
+))(200)
 
 corrplot(
   cor_matrix,
-  method = "circle",        # Show circles
-  type = "lower",           # Lower triangle only
-  diag = FALSE,             # Hide diagonal
-  tl.col = "black",         # Text label color
-  tl.cex = 0.8,             # Text label size
-  tl.srt = 45,              # Text label rotation
-  col = col,                # Color gradient
-  bg = "white",             # Background color
-  addCoef.col = "black",    # Coefficient text color
-  number.cex = 0.6,         # Coefficient text size
-  number.font = 1,          # Coefficient font (1=plain)
-  mar = c(0, 0, 1, 0),      # Margins
-  cl.pos = "n",             # Color legend on right
-  cl.ratio = 0.2,           # Color legend width ratio
-  cl.cex = 0.7              # Color legend text size
+  method = "circle", # Show circles
+  type = "lower", # Lower triangle only
+  diag = FALSE, # Hide diagonal
+  tl.col = "black", # Text label color
+  tl.cex = 0.8, # Text label size
+  tl.srt = 45, # Text label rotation
+  col = col, # Color gradient
+  bg = "white", # Background color
+  addCoef.col = "black", # Coefficient text color
+  number.cex = 0.6, # Coefficient text size
+  number.font = 1, # Coefficient font (1=plain)
+  mar = c(0, 0, 1, 0), # Margins
+  cl.pos = "n", # Color legend on right
+  cl.ratio = 0.2, # Color legend width ratio
+  cl.cex = 0.7 # Color legend text size
 )
 
 # High with anxiety: sleep hours(-0.49), Caffeine intake (0.35), stress level (0.67), therapy sessions (0.52)
@@ -56,9 +63,9 @@ cor_mat <- df.num |>
     Therapy.Sessions..per.month.
   )
 
-cor(cor_mat) %>% 
-  as.data.frame() %>% 
-  mutate(across(everything(), ~round(., 2))) %>% 
+cor(cor_mat) %>%
+  as.data.frame() %>%
+  mutate(across(everything(), ~ round(., 2))) %>%
   View()
 
 df$Anxiety.Category[df$Anxiety.Level..1.10. <= 3] = "Low"
@@ -114,7 +121,7 @@ count.of.anxity.in.occupation |>
   theme(legend.position = "none")
 
 # High Anxiety level doesn't differenciate between occupations, in Medium and Low anxiety levels it does probably. The ideal would be to test if there is a difference between occupations in Low and Medium anxiety levels with statistical tests, but it would be too much work.
-# Occupations that Medium is more frequent then low: Doctor, Nurse, Scientist, Lawyer
+# Occupations that Medium is more frequent then low and a bit higher in high anxiety: Doctor, Engineer, Scientist, Lawyer, Student, Freelancer
 
 # Smoking, Family History of Anxiety, Dizziness, Medication, Major Evente in life.
 
@@ -275,9 +282,100 @@ ggplot(df, aes(x = age.category, y = Anxiety.Level..1.10.)) +
   ) +
   labs(x = "Age Group", y = "Anxiety Level (1-10)")
 
-# Variables to be included in the General Model: Occupation,  Sleep.Hours, Physical.Activity..hrs.week., Caffeine.Intake..mg.day., Alcohol.Consumption..drinks.week., Smoking, Family.History.of.Anxiety, Stress.Level..1.10., Heart.Rate..bpm., Breathing.Rate..breaths.min., Sweating.Level..1.5., Diet.Quality..1.10., Medication, Recent.Major.Life.Event, Dizziness, Therapy.Sessions..per.month., age.categoty,
+# Categories for Ocucupations
 
-# Variables to be included in the reduced General Model: Occupation , Sleep.Hours, Caffeine.Intake..mg.day., Stress.Level..1.10., Therapy.Sessions..per.month., Family.History.of.Anxiety
+table(df$Occupation)
+
+# I can make two kinds of categories: Area (health, art, education) or High and lower probability of anxiety. In both I'd add other as a unique category
+# I'll make the second one
+
+df <- df |>
+  mutate(
+    risk.occupation = case_when(
+      Occupation == 'Doctor' |
+        Occupation == 'Engineer' |
+        Occupation == 'Scientist' |
+        Occupation == 'Lawyer' |
+        Occupation == 'Student' |
+        Occupation == 'Freelancer' ~
+        'Yes',
+      TRUE ~ 'No'
+    )
+  )
+
+df <- df |>
+  mutate(
+    risk.occupation = ifelse(Occupation == 'Other', 'Other', risk.occupation)
+  )
+
+df$risk.occupation = as.factor(df$risk.occupation)
+
+table(df$risk.occupation)
+
+df |>
+  count(risk.occupation, Anxiety.Category) |>
+  ggplot(aes(x = Anxiety.Category, y = n, fill = risk.occupation)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(
+    title = "Distribuição da Ansiedade por Categoria de Profissão",
+    x = "Categoria de Ansiedade",
+    y = "Frequência",
+    fill = "Profissão"
+  ) +
+  theme_minimal()
+
+# Testing diference in risk.occupation
+
+ggplot(df, aes(sample = Anxiety.Level..1.10.)) +
+  stat_qq() +
+  stat_qq_line() +
+  facet_wrap(~risk.occupation)
+
+car::leveneTest(Anxiety.Level..1.10. ~ risk.occupation, data = df)
+
+kruskal.test(Anxiety.Level..1.10. ~ risk.occupation, data = df)
+
+pairwise.wilcox.test(
+  df$Anxiety.Level..1.10.,
+  df$risk.occupation,
+  p.adjust.method = "bonferroni"
+)
+
+ggplot(df, aes(x = risk.occupation, y = Anxiety.Level..1.10.)) +
+  geom_boxplot(
+    fill = "lightblue",          # Softer fill color
+    outlier.shape = NA,          # Hide outliers (optional)
+    width = 0.6,                 # Adjust box width
+    alpha = 0.7                  # Slight transparency
+  ) +
+  stat_compare_means(
+    comparisons = list(
+      c("Yes", "No"),
+      c("Yes", "Other"),
+      c("No", "Other")
+    ),
+    method = "wilcox.test",
+    label = "p.signif",
+    step.increase = 0.1,         # Space between brackets
+    tip.length = 0.01,           # Length of comparison lines
+    size = 4,                    # Asterisk size
+    vjust = 0.5                  # Vertical adjustment
+  ) +
+  labs(
+    x = "Occupation Risk Group", 
+    y = "Anxiety Level (1-10)",
+    title = "Anxiety Levels by Occupation Risk Category"
+  ) +
+  theme_minimal() +              # Clean background
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    axis.text = element_text(size = 10),
+    axis.title = element_text(size = 11))
+
+
+# Variables to be included in the General Model: risk.occupation,  Sleep.Hours, Physical.Activity..hrs.week., Caffeine.Intake..mg.day., Alcohol.Consumption..drinks.week., Smoking, Family.History.of.Anxiety, Stress.Level..1.10., Heart.Rate..bpm., Breathing.Rate..breaths.min., Sweating.Level..1.5., Diet.Quality..1.10., Medication, Recent.Major.Life.Event, Dizziness, Therapy.Sessions..per.month., age.categoty,
+
+# Variables to be included in the reduced General Model: risk.occupation , Sleep.Hours, Caffeine.Intake..mg.day., Stress.Level..1.10., Therapy.Sessions..per.month., Family.History.of.Anxiety
 
 # Variables to be incluided in the High Anxiety Model: Smoking, Family.History.of.Anxiety, Dizziness, Medication, Recent.Major.Life.Event, Sleep.Hours, Caffeine.Intake..mg.day., Stress.Level..1.10., Therapy.Sessions..per.month., Alcohol.Consumption..drinks.week., Physical.Activity..hrs.week., Heart.Rate..bpm., Breathing.Rate..breaths.min. , Sweating.Level..1.5. and Diet.Quality..1.10., age.categoty
 
