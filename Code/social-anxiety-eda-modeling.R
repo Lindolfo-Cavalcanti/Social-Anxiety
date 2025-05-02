@@ -1,7 +1,10 @@
 library(tidyverse)
-library(skimr)
-library(corrplot)
-library(psych)
+library(ggpubr)
+use('skimr', 'skim')
+use('psych', 'describe')
+use('corrplot', 'corrplot')
+use('car', 'leveneTest')
+use('report', 'report')
 
 # Read in data
 df <- read.csv("Data/enhanced_anxiety_dataset.csv")
@@ -17,22 +20,28 @@ df.num = df |> select(where(is.numeric))
 
 df.num |> describe()
 
+cor_matrix <- cor(df.num)
+
+# Custom color palette (blue to red)
+col <- colorRampPalette(c("#0571b0", "#92c5de", "#f7f7f7", "#f4a582", "#ca0020"))(200)
+
 corrplot(
-  cor(df.num),
-  method = "number",
-  main = "Correlation matrix of numeric variables",
-  col = c("#FF0000", "#FFFFFF", "#008000"),
-  cl.lim = c(-1, 1),
-  number.cex = .8,
-  mar = c(1, 1, 1, 1),
-  type = "lower",
-  addCoef.col = "#FF0000",
-  outline = FALSE,
-  bg = "white",
-  tl.pos = "lt",
-  tl.cex = 0.7,
-  tl.srt = 45,
-  tl.col = "#008000"
+  cor_matrix,
+  method = "circle",        # Show circles
+  type = "lower",           # Lower triangle only
+  diag = FALSE,             # Hide diagonal
+  tl.col = "black",         # Text label color
+  tl.cex = 0.8,             # Text label size
+  tl.srt = 45,              # Text label rotation
+  col = col,                # Color gradient
+  bg = "white",             # Background color
+  addCoef.col = "black",    # Coefficient text color
+  number.cex = 0.6,         # Coefficient text size
+  number.font = 1,          # Coefficient font (1=plain)
+  mar = c(0, 0, 1, 0),      # Margins
+  cl.pos = "n",             # Color legend on right
+  cl.ratio = 0.2,           # Color legend width ratio
+  cl.cex = 0.7              # Color legend text size
 )
 
 # High with anxiety: sleep hours(-0.49), Caffeine intake (0.35), stress level (0.67), therapy sessions (0.52)
@@ -45,22 +54,12 @@ cor_mat <- df.num |>
     Sleep.Hours,
     Caffeine.Intake..mg.day.,
     Therapy.Sessions..per.month.
-  ) |>
-  cor(use = "complete.obs") |>
-  round(2)
+  )
 
-# Remove upper triangle
-cor_mat[upper.tri(cor_mat)] <- NA
-cor_mat
-
-corPlot(
-  cor_mat,
-  method = "number",
-  type = "upper",
-  order = "hclust",
-  tl.col = "black",
-  tl.srt = 45,
-)
+cor(cor_mat) %>% 
+  as.data.frame() %>% 
+  mutate(across(everything(), ~round(., 2))) %>% 
+  View()
 
 df$Anxiety.Category[df$Anxiety.Level..1.10. <= 3] = "Low"
 df$Anxiety.Category[
