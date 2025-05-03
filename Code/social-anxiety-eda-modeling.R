@@ -464,8 +464,10 @@ registerDoSNOW(clusters)
 
 ## General Model
 
-general.indexes = caret::createDataPartition(general.model.df$Anxiety.Category, 
-  p = 0.7)
+general.indexes = caret::createDataPartition(
+  general.model.df$Anxiety.Category,
+  p = 0.7
+)
 
 general.train = general.model.df[general.indexes$Resample1, ]
 general.test = general.model.df[-general.indexes$Resample1, ]
