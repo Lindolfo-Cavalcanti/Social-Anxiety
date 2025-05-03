@@ -1,6 +1,7 @@
 library(tidyverse)
 library(ggpubr)
 library(caret)
+use('doSNOW', c('makeCluster', 'registerDoSNOW'))
 use('skimr', 'skim')
 use('psych', 'describe')
 use('corrplot', 'corrplot')
@@ -343,10 +344,10 @@ pairwise.wilcox.test(
 
 ggplot(df, aes(x = risk.occupation, y = Anxiety.Level..1.10.)) +
   geom_boxplot(
-    fill = "lightblue",          # Softer fill color
-    outlier.shape = NA,          # Hide outliers (optional)
-    width = 0.6,                 # Adjust box width
-    alpha = 0.7                  # Slight transparency
+    fill = "lightblue", # Softer fill color
+    outlier.shape = NA, # Hide outliers (optional)
+    width = 0.6, # Adjust box width
+    alpha = 0.7 # Slight transparency
   ) +
   stat_compare_means(
     comparisons = list(
@@ -356,22 +357,25 @@ ggplot(df, aes(x = risk.occupation, y = Anxiety.Level..1.10.)) +
     ),
     method = "wilcox.test",
     label = "p.signif",
-    step.increase = 0.1,         # Space between brackets
-    tip.length = 0.01,           # Length of comparison lines
-    size = 4,                    # Asterisk size
-    vjust = 0.5                  # Vertical adjustment
+    step.increase = 0.1, # Space between brackets
+    tip.length = 0.01, # Length of comparison lines
+    size = 4, # Asterisk size
+    vjust = 0.5 # Vertical adjustment
   ) +
   labs(
-    x = "Occupation Risk Group", 
+    x = "Occupation Risk Group",
     y = "Anxiety Level (1-10)",
     title = "Anxiety Levels by Occupation Risk Category"
   ) +
-  theme_minimal() +              # Clean background
+  theme_minimal() + # Clean background
   theme(
     plot.title = element_text(hjust = 0.5, face = "bold"),
     axis.text = element_text(size = 10),
-    axis.title = element_text(size = 11))
+    axis.title = element_text(size = 11)
+  )
 
+
+# Models
 
 # Variables to be included in the General Model: risk.occupation,  Sleep.Hours, Physical.Activity..hrs.week., Caffeine.Intake..mg.day., Alcohol.Consumption..drinks.week., Smoking, Family.History.of.Anxiety, Stress.Level..1.10., Heart.Rate..bpm., Breathing.Rate..breaths.min., Sweating.Level..1.5., Diet.Quality..1.10., Medication, Recent.Major.Life.Event, Dizziness, Therapy.Sessions..per.month., age.categoty,
 
@@ -379,4 +383,107 @@ ggplot(df, aes(x = risk.occupation, y = Anxiety.Level..1.10.)) +
 
 # Variables to be incluided in the High Anxiety Model: Smoking, Family.History.of.Anxiety, Dizziness, Medication, Recent.Major.Life.Event, Sleep.Hours, Caffeine.Intake..mg.day., Stress.Level..1.10., Therapy.Sessions..per.month., Alcohol.Consumption..drinks.week., Physical.Activity..hrs.week., Heart.Rate..bpm., Breathing.Rate..breaths.min. , Sweating.Level..1.5. and Diet.Quality..1.10., age.categoty
 
-# Models
+general.model.df = df |>
+  select(
+    Anxiety.Category,
+    risk.occupation,
+    Sleep.Hours,
+    Physical.Activity..hrs.week.,
+    Caffeine.Intake..mg.day.,
+    Alcohol.Consumption..drinks.week.,
+    Smoking,
+    Family.History.of.Anxiety,
+    Stress.Level..1.10.,
+    Heart.Rate..bpm.,
+    Breathing.Rate..breaths.min.,
+    Sweating.Level..1.5.,
+    Diet.Quality..1.10.,
+    Medication,
+    Recent.Major.Life.Event,
+    Dizziness,
+    Therapy.Sessions..per.month.,
+    age.category
+  )
+
+reduced.general.model.df = df |>
+  select(
+    Anxiety.Category,
+    risk.occupation,
+    Sleep.Hours,
+    Caffeine.Intake..mg.day.,
+    Stress.Level..1.10.,
+    Therapy.Sessions..per.month.,
+    Family.History.of.Anxiety
+  )
+
+high.anxiety.model.df = df |>
+  select(
+    Anxiety.Category,
+    Smoking,
+    Family.History.of.Anxiety,
+    Dizziness,
+    Medication,
+    Recent.Major.Life.Event,
+    Sleep.Hours,
+    Caffeine.Intake..mg.day.,
+    Stress.Level..1.10.,
+    Therapy.Sessions..per.month.,
+    Alcohol.Consumption..drinks.week.,
+    Physical.Activity..hrs.week.,
+    Heart.Rate..bpm.,
+    Breathing.Rate..breaths.min.,
+    Sweating.Level..1.5.,
+    Diet.Quality..1.10.,
+    age.category
+  )
+
+str(c(general.model.df, reduced.general.model.df, high.anxiety.model.df))
+
+
+general.model.df$age.category = as.factor(general.model.df$age.category)
+high.anxiety.model.df$age.category = as.factor(
+  high.anxiety.model.df$age.category
+)
+
+high.anxiety.model.df = high.anxiety.model.df |>
+  mutate(is.high = ifelse(Anxiety.Category == "High", TRUE, FALSE))
+
+high.anxiety.model.df$Anxiety.Category = NULL
+
+# Caret
+
+## Reduced General Model
+
+indexes = caret::createDataPartition(general.model.df$Anxiety.Category, p = 0.7)
+
+general.train = general.model.df[indexes$Resample1, ]
+general.test = general.model.df[-indexes$Resample1, ]
+
+prop.table(table(general.train$Anxiety.Category))
+prop.table(table(general.test$Anxiety.Category))
+
+general.train.control = caret::trainControl(
+  method = "repeatedcv",
+  number = 10,
+  repeats = 3,
+  search = "grid"
+)
+
+general.clusters = makeCluster(10, type = "SOCK")
+registerDoSNOW(general.clusters)
+
+general.model.trained = caret::train(
+  Anxiety.Category ~ .,
+  data = general.train,
+  method = "xgbTree",
+  trControl = general.train.control,
+  metric = "Accuracy"
+)
+
+stopCluster(general.clusters)
+
+print(general.model.trained)
+
+general.prediction = predict(general.model.trained, general.test)
+
+caret::confusionMatrix(general.prediction, general.test$Anxiety.Category)
