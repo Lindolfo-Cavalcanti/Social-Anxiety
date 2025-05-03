@@ -452,38 +452,93 @@ high.anxiety.model.df$Anxiety.Category = NULL
 
 # Caret
 
-## Reduced General Model
-
-indexes = caret::createDataPartition(general.model.df$Anxiety.Category, p = 0.7)
-
-general.train = general.model.df[indexes$Resample1, ]
-general.test = general.model.df[-indexes$Resample1, ]
-
-prop.table(table(general.train$Anxiety.Category))
-prop.table(table(general.test$Anxiety.Category))
-
-general.train.control = caret::trainControl(
+train.control = caret::trainControl(
   method = "repeatedcv",
   number = 10,
   repeats = 3,
   search = "grid"
 )
 
-general.clusters = makeCluster(10, type = "SOCK")
-registerDoSNOW(general.clusters)
+clusters = makeCluster(10, type = "SOCK")
+registerDoSNOW(clusters)
+
+## General Model
+
+general.indexes = caret::createDataPartition(general.model.df$Anxiety.Category, 
+  p = 0.7)
+
+general.train = general.model.df[general.indexes$Resample1, ]
+general.test = general.model.df[-general.indexes$Resample1, ]
+
+prop.table(table(general.train$Anxiety.Category))
+prop.table(table(general.test$Anxiety.Category))
 
 general.model.trained = caret::train(
   Anxiety.Category ~ .,
   data = general.train,
   method = "xgbTree",
-  trControl = general.train.control,
+  trControl = train.control,
   metric = "Accuracy"
 )
-
-stopCluster(general.clusters)
 
 print(general.model.trained)
 
 general.prediction = predict(general.model.trained, general.test)
 
 caret::confusionMatrix(general.prediction, general.test$Anxiety.Category)
+
+## Reduced General Model
+
+reduced.indexes = caret::createDataPartition(
+  reduced.general.model.df$Anxiety.Category,
+  p = 0.7
+)
+
+reduced.train = reduced.general.model.df[reduced.indexes$Resample1, ]
+reduced.test = reduced.general.model.df[-reduced.indexes$Resample1, ]
+
+prop.table(table(reduced.train$Anxiety.Category))
+prop.table(table(reduced.test$Anxiety.Category))
+
+reduced.model.trained = caret::train(
+  Anxiety.Category ~ .,
+  data = reduced.train,
+  method = 'xgbTree',
+  trControl = train.control,
+  metric = 'Accuracy'
+)
+
+print(reduced.model.trained)
+
+reduced.prediction = predict(reduced.model.trained, reduced.test)
+
+caret::confusionMatrix(reduced.prediction, reduced.test$Anxiety.Category)
+
+## High Anxiety Model
+
+high.indexes = caret::createDataPartition(
+  high.anxiety.model.df$is.high,
+  p = 0.7
+)
+
+high.train = high.anxiety.model.df[high.indexes$Resample1, ]
+high.test = high.anxiety.model.df[-high.indexes$Resample1, ]
+
+prop.table(table(high.train$is.high))
+prop.table(table(high.test$is.high))
+
+high.model.trained = caret::train(
+  is.high ~ .,
+  data = high.train,
+  method = 'xgbTree',
+  trControl = train.control,
+  metric = 'Accuracy'
+)
+
+print(high.model.trained)
+
+high.prediction = predict(high.model.trained, high.test)
+
+caret::confusionMatrix(high.prediction, high.test$is.high)
+
+stopCluster(clusters)
