@@ -375,7 +375,7 @@ ggplot(df, aes(x = risk.occupation, y = Anxiety.Level..1.10.)) +
   )
 
 
-# Models
+# Models Preprocessing and Encoding
 
 # Variables to be included in the General Model: risk.occupation,  Sleep.Hours, Physical.Activity..hrs.week., Caffeine.Intake..mg.day., Alcohol.Consumption..drinks.week., Smoking, Family.History.of.Anxiety, Stress.Level..1.10., Heart.Rate..bpm., Breathing.Rate..breaths.min., Sweating.Level..1.5., Diet.Quality..1.10., Medication, Recent.Major.Life.Event, Dizziness, Therapy.Sessions..per.month., age.categoty,
 
@@ -449,6 +449,111 @@ high.anxiety.model.df = high.anxiety.model.df |>
   mutate(is.high = ifelse(Anxiety.Category == "High", TRUE, FALSE))
 
 high.anxiety.model.df$Anxiety.Category = NULL
+
+## Enconding
+
+str(general.model.df)
+
+general.model.df <- general.model.df |>
+  mutate(
+    Anxiety.Category = as.integer(recode(
+      Anxiety.Category,
+      "Low" = 1,
+      "Medium" = 2,
+      "High" = 3
+    ))
+  )
+
+general.model.df <- general.model.df |>
+  mutate(
+    age.category = as.integer(recode(
+      age.category,
+      "young" = 1,
+      "young adults" = 2,
+      "adults" = 3,
+      "elders" = 4
+    ))
+  )
+
+
+general.model.df <- general.model.df |>
+  mutate(
+    risk.occupation = as.integer(recode(
+      risk.occupation,
+      "No" = 1,
+      "Other" = 2,
+      "Yes" = 3,
+    ))
+  )
+
+general.model.df <- general.model.df |>
+  mutate(
+    Smoking = ifelse(Smoking == "Yes", 1, 0),
+    Family.History.of.Anxiety = ifelse(
+      Family.History.of.Anxiety == "Yes",
+      1,
+      0
+    ),
+    Medication = ifelse(Medication == "Yes", 1, 0),
+    Recent.Major.Life.Event = ifelse(Recent.Major.Life.Event == "Yes", 1, 0),
+    Dizziness = ifelse(Dizziness == "Yes", 1, 0)
+  )
+
+str(reduced.general.model.df)
+
+reduced.general.model.df = reduced.general.model.df |>
+  mutate(
+    Anxiety.Category = as.integer(recode(
+      Anxiety.Category,
+      "Low" = 1,
+      "Medium" = 2,
+      "High" = 3
+    ))
+  )
+
+reduced.general.model.df = reduced.general.model.df |>
+  mutate(
+    risk.occupation = as.integer(recode(
+      risk.occupation,
+      "No" = 1,
+      "Other" = 2,
+      "Yes" = 3,
+    ))
+  )
+
+reduced.general.model.df <- reduced.general.model.df |>
+  mutate(
+    Family.History.of.Anxiety = ifelse(Family.History.of.Anxiety == "Yes", 1, 0)
+  )
+
+str(high.anxiety.model.df)
+
+high.anxiety.model.df = high.anxiety.model.df |>
+  mutate(is.high = ifelse(is.high == TRUE, 1, 0))
+
+high.anxiety.model.df = high.anxiety.model.df |>
+  mutate(
+    age.category = as.integer(recode(
+      age.category,
+      "young" = 1,
+      "young adults" = 2,
+      "adults" = 3,
+      "elders" = 4
+    ))
+  )
+
+high.anxiety.model.df = high.anxiety.model.df |>
+  mutate(
+    Smoking = ifelse(Smoking == "Yes", 1, 0),
+    Family.History.of.Anxiety = ifelse(
+      Family.History.of.Anxiety == "Yes",
+      1,
+      0
+    ),
+    Medication = ifelse(Medication == "Yes", 1, 0),
+    Recent.Major.Life.Event = ifelse(Recent.Major.Life.Event == "Yes", 1, 0),
+    Dizziness = ifelse(Dizziness == "Yes", 1, 0)
+  )
 
 # Caret
 
@@ -542,5 +647,4 @@ print(high.model.trained)
 high.prediction = predict(high.model.trained, high.test)
 
 caret::confusionMatrix(high.prediction, high.test$is.high)
-
 stopCluster(clusters)
